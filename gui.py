@@ -1,10 +1,19 @@
-
-
 import sys
 from PyQt4 import QtGui, QtCore
-import urllib,urllib2
-import pyHook
+try:
+    import urllib.request as urllib2
+except ImportError:
+    import urllib2
+import urllib
 from datetime import datetime
+from sys import platform as _platform
+
+if _platform == "darwin":
+    from Foundation import NSObject, NSLog
+    from Cocoa import NSEvent, NSKeyDownMask, NSKeyDown
+    import string
+elif _platform == "win32":
+    import pyHook
 
 class KeyCounter(QtCore.QObject):
     '''
@@ -15,7 +24,20 @@ class KeyCounter(QtCore.QObject):
     def __init__(self):
         super(KeyCounter, self).__init__()
         self.keyCount = 0
-        self.setupKeyCounter()
+        if _platform == "win32":
+            self.setupKeyCounterWin()
+        elif _platform == "darwin":
+            self.setupKeyCounterMac()
+
+    def setupKeyCounterMac(self):
+        mask = NSKeyDownMask
+        NSEvent.addGlobalMonitorForEventsMatchingMask_handler_(mask, self.macCountKey)
+        NSEvent.addLocalMonitorForEventsMatchingMask_handler_(mask, self.macCountKey)
+
+    def macCountKey(self, event):
+        eventCharAscii = ord(event._.characters)
+        if eventCharAscii > 32 and eventCharAscii < 127:
+            self.keyCount += 1
 
     def countKey(self, event):
         '''
@@ -23,9 +45,9 @@ class KeyCounter(QtCore.QObject):
         '''
         if event.Ascii > 32 and event.Ascii < 127:
             self.keyCount += 1
-        return True
+        return True # Don't block key handling
 
-    def setupKeyCounter(self):
+    def setupKeyCounterWin(self):
         '''
         Setup the hook for monitoring global key presses
         '''
@@ -111,7 +133,7 @@ def postCountToGoogleForm(keyCount):
         req = urllib2.Request(url,dataenc)
         response = urllib2.urlopen(req)
     except Exception as e:
-        print e
+        print(e)
     return True
 
 def main():
